@@ -1,0 +1,133 @@
+# Infra do projeto: PostgreSQL (banco principal), Redis (cache) e Kafka (eventos).
+#
+# Portas expostas no host (para rodar serviços pela IDE/Maven também):
+#   PostgreSQL  5432
+#   Redis       6379
+#   Kafka       9092  (acesso de fora do Docker)
+#
+# Uso:
+#   docker compose up -d                    # sobe tudo
+#   docker compose up -d postgres redis     # só o que precisar
+#   docker compose logs -f kafka            # acompanhar logs de um serviço
+#   docker compose down                     # derruba (mantém dados)
+#   docker compose down -v                  # derruba e apaga volumes
+#
+# Credenciais podem ser sobrescritas por um arquivo .env ao lado deste compose.
+# Os valores padrão abaixo servem para desenvolvimento local.
+
+name: gerador-cartao  # TODO: trocar pelo nome do projeto
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: app-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-appdb}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Scripts .sql/.sh nesta pasta rodam só na 1ª criação do volume (opcional):
+      # - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: app-redis
+    command: ["redis-server", "--appendonly", "yes"]   # persistência simples em disco
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  kafka:
+    image: apache/kafka:3.8.0   # KRaft (sem Zookeeper)
+    container_name: app-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      # Dois listeners de cliente:
+      #   INTERNAL (kafka:29092)   -> serviços DENTRO do compose
+      #   EXTERNAL (localhost:9092) -> serviços rodando no HOST (IDE/Maven)
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Serviços da aplicação (descomentar quando os Dockerfiles existirem).
+  # Dentro do compose, use os NOMES dos serviços como host (postgres, redis,
+  # kafka:29092), nunca localhost.
+  # ---------------------------------------------------------------------------
+
+  # servico-a:
+  #   build:
+  #     context: ./servico-a          # pasta com o Dockerfile
+  #   container_name: app-servico-a
+  #   ports:
+  #     - "8081:8080"
+  #   environment:
+  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-appdb}
+  #     SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-app}
+  #     SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-app}
+  #     SPRING_DATA_REDIS_HOST: redis
+  #     SPRING_DATA_REDIS_PORT: 6379
+  #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_healthy
+
+  # servico-b:
+  #   build:
+  #     context: ./servico-b
+  #   container_name: app-servico-b
+  #   ports:
+  #     - "8082:8080"
+  #   environment:
+  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-appdb}
+  #     SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-app}
+  #     SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-app}
+  #     SPRING_DATA_REDIS_HOST: redis
+  #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_healthy
+
+volumes:
+  postgres-data:
+  redis-data:
+  kafka-data:
