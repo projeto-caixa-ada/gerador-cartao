@@ -6,7 +6,6 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record CartaoEmitidoEvent(
-        String eventId,
         String solicitacaoId,
         String clienteId,
         String cartaoId,

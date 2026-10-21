@@ -20,6 +20,7 @@ public class KafkaCartaoEmitidoPublisher {
     public void publicar(CartaoEmitidoEvent evento) {
         try {
             emitter.send(objectMapper.writeValueAsString(evento));
+            System.out.println("Evento de cartão emitido publicado no Kafka: " + evento);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Erro ao serializar evento de cartão emitido", e);
         }

@@ -65,7 +65,6 @@ public class CartaoApplicationService {
        emissaoRepository.persist(emissao);
 
        CartaoEmitidoEvent evento = new CartaoEmitidoEvent(
-               UUID.randomUUID().toString(),
                solicitacaoId,
                mensagem.clienteId(),
                String.valueOf(cartao.getId()),
