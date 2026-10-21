@@ -1,36 +1,54 @@
-# Infra do projeto: PostgreSQL (banco principal), Redis (cache) e Kafka (eventos).
+# Infra do projeto: 2 bancos PostgreSQL (um por serviço), Redis (cache) e Kafka (eventos).
 #
 # Portas expostas no host (para rodar serviços pela IDE/Maven também):
-#   PostgreSQL  5432
-#   Redis       6379
-#   Kafka       9092  (acesso de fora do Docker)
+#   PostgreSQL solicitacao_cartao_db  5432
+#   PostgreSQL emissao_cartao_db      5433
+#   Redis                             6379
+#   Kafka                             9092  (acesso de fora do Docker)
 #
 # Uso:
-#   docker compose up -d                    # sobe tudo
-#   docker compose up -d postgres redis     # só o que precisar
-#   docker compose logs -f kafka            # acompanhar logs de um serviço
-#   docker compose down                     # derruba (mantém dados)
-#   docker compose down -v                  # derruba e apaga volumes
+#   docker compose up -d                              # sobe tudo
+#   docker compose up -d postgres-solicitacao redis   # só o que precisar
+#   docker compose logs -f kafka                      # acompanhar logs de um serviço
+#   docker compose down                               # derruba (mantém dados)
+#   docker compose down -v                            # derruba e apaga volumes
 #
 # Credenciais podem ser sobrescritas por um arquivo .env ao lado deste compose.
 # Os valores padrão abaixo servem para desenvolvimento local.
 
-name: gerador-cartao  # TODO: trocar pelo nome do projeto
+name: gerador-cartao
 
 services:
-  postgres:
+  # Banco do serviço de solicitação de cartão
+  postgres-solicitacao:
     image: postgres:16-alpine
-    container_name: app-postgres
+    container_name: app-postgres-solicitacao
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-appdb}
+      POSTGRES_DB: solicitacao_cartao_db
       POSTGRES_USER: ${POSTGRES_USER:-app}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      # Scripts .sql/.sh nesta pasta rodam só na 1ª criação do volume (opcional):
-      # - ./db/init:/docker-entrypoint-initdb.d:ro
+      - postgres-solicitacao-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Banco do serviço de emissão de cartão
+  postgres-emissao:
+    image: postgres:16-alpine
+    container_name: app-postgres-emissao
+    environment:
+      POSTGRES_DB: emissao_cartao_db
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+    ports:
+      - "5433:5432"     # porta 5433 no host para não colidir com o outro Postgres
+    volumes:
+      - postgres-emissao-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
@@ -52,7 +70,7 @@ services:
       retries: 5
 
   kafka:
-    image: apache/kafka:3.8.0   # KRaft (sem Zookeeper)
+    image: apache/kafka:3.8.0 
     container_name: app-kafka
     ports:
       - "9092:9092"
@@ -82,45 +100,46 @@ services:
 
   # ---------------------------------------------------------------------------
   # Serviços da aplicação (descomentar quando os Dockerfiles existirem).
-  # Dentro do compose, use os NOMES dos serviços como host (postgres, redis,
-  # kafka:29092), nunca localhost.
+  # Dentro do compose, use os NOMES dos serviços como host (postgres-solicitacao,
+  # postgres-emissao, redis, kafka:29092), nunca localhost. Dentro da rede do
+  # compose a porta do Postgres é sempre 5432 (a 5433 existe só no host).
   # ---------------------------------------------------------------------------
 
-  # servico-a:
+  # servico-solicitacao:
   #   build:
-  #     context: ./servico-a          # pasta com o Dockerfile
-  #   container_name: app-servico-a
+  #     context: ./servico-solicitacao   # pasta com o Dockerfile
+  #   container_name: app-servico-solicitacao
   #   ports:
   #     - "8081:8080"
   #   environment:
-  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-appdb}
+  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-solicitacao:5432/solicitacao_cartao_db
   #     SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-app}
   #     SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-app}
   #     SPRING_DATA_REDIS_HOST: redis
   #     SPRING_DATA_REDIS_PORT: 6379
   #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
   #   depends_on:
-  #     postgres:
+  #     postgres-solicitacao:
   #       condition: service_healthy
   #     redis:
   #       condition: service_healthy
   #     kafka:
   #       condition: service_healthy
 
-  # servico-b:
+  # servico-emissao:
   #   build:
-  #     context: ./servico-b
-  #   container_name: app-servico-b
+  #     context: ./servico-emissao
+  #   container_name: app-servico-emissao
   #   ports:
   #     - "8082:8080"
   #   environment:
-  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-appdb}
+  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-emissao:5432/emissao_cartao_db
   #     SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-app}
   #     SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-app}
   #     SPRING_DATA_REDIS_HOST: redis
   #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
   #   depends_on:
-  #     postgres:
+  #     postgres-emissao:
   #       condition: service_healthy
   #     redis:
   #       condition: service_healthy
@@ -128,6 +147,7 @@ services:
   #       condition: service_healthy
 
 volumes:
-  postgres-data:
+  postgres-solicitacao-data:
+  postgres-emissao-data:
   redis-data:
   kafka-data:
