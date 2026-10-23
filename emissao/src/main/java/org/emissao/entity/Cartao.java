@@ -22,8 +22,8 @@ public class Cartao  {
     @Column(name = "cliente_id", nullable = false)
     private String clienteId;
 
-    @Column(name = "nome_titular", nullable = false)
-    private String nomeTitular;
+    @Column(name = "data_solicitacao", nullable = false)
+    private Instant dataSolicitacao;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
@@ -82,12 +82,12 @@ public class Cartao  {
         this.clienteId = clienteId;
     }
 
-    public String getNomeTitular() {
-        return nomeTitular;
+    public Instant getDataSolicitacao() {
+        return dataSolicitacao;
     }
 
-    public void setNomeTitular(String nomeTitular) {
-        this.nomeTitular = nomeTitular;
+    public void setDataSolicitacao(Instant dataSolicitacao) {
+        this.dataSolicitacao = dataSolicitacao;
     }
 
     public StatusCartao getStatus() {
