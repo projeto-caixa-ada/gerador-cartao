@@ -97,7 +97,7 @@ A divisão abaixo cria dois contextos de negócio separados e permite a implemen
 **Banco de dados:**
 
 ```text
-solicitacao_db
+solicitacao_cartao_db
 ```
 
 ### 4.2. Contexto de Emissão de Cartão
@@ -118,7 +118,7 @@ solicitacao_db
 **Banco de dados:**
 
 ```text
-cartao_db
+emissao_cartao_db
 ```
 
 ### 4.3. Mapa de contextos - Coreografia
@@ -126,11 +126,11 @@ cartao_db
 ```mermaid
 flowchart TD
     subgraph SOL[Contexto de Solicitação]
-        dbS[(solicitacao_db)]
+        dbS[(solicitacao_cartao_db)]
     end
 
     subgraph EMI[Contexto de Emissão]
-        dbE[(cartao_db)]
+        dbE[(emissao_cartao_db)]
     end
 
     CONS[Sistemas consumidores]
@@ -154,7 +154,6 @@ Exemplo de evento:
 
 ```json
 {
-  "eventId": "123",
   "solicitacaoId": "999",
   "clienteId": "111",
   "dataSolicitacao": "2026-10-09T15:00:00-03:00"
@@ -190,7 +189,7 @@ O consumidor deve ser idempotente, ou seja, o recebimento repetido do mesmo even
 ### Chave de idempotência
 
 ```text
-eventId
+solicitacaoId
 ```
 
 ### Tabela sugerida
@@ -203,11 +202,11 @@ eventos_processados
 
 ```mermaid
 flowchart TD
-    A[Recebe o evento] --> B[Consulta o eventId em eventos_processados]
+    A[Recebe o evento] --> B[Consulta o solicitacaoId em eventos_processados]
     B --> C{O evento já foi processado?}
     C -- Sim --> D[Ignora a duplicidade]
     C -- Não --> E[Processa a emissão]
-    E --> F[Registra o eventId]
+    E --> F[Registra o solicitacaoId]
 ```
 
 ---
