@@ -37,6 +37,7 @@ public class CartaoApplicationService {
     public Emissao processarSolicitacaoValidada(SolicitacaoValidadaMessage mensagem) {
        validarMensagem(mensagem);
 
+       Instant dataSolicitacao = mensagem.dataSolicitacao() != null ? mensagem.dataSolicitacao() : Instant.now();
        String solicitacaoId = String.valueOf(mensagem.solicitacaoId());
        Optional<Cartao> cartaoExistente = cartaoRepository.buscarPorSolicitacaoId(solicitacaoId);
 
@@ -50,7 +51,7 @@ public class CartaoApplicationService {
        Cartao cartao = new Cartao();
        cartao.setSolicitacaoId(solicitacaoId);
        cartao.setClienteId(mensagem.clienteId());
-       cartao.setNomeTitular(mensagem.nomeTitular());
+       cartao.setDataSolicitacao(dataSolicitacao);
        cartao.setNumero(numeroCartao);
        cartao.setStatus(StatusCartao.EMITIDO);
 
@@ -59,6 +60,7 @@ public class CartaoApplicationService {
        Emissao emissao = new Emissao();
        emissao.setSolicitacaoId(solicitacaoId);
        emissao.setClienteId(mensagem.clienteId());
+       emissao.setDataSolicitacao(dataSolicitacao);
        emissao.setCartao(cartao);
        emissao.setStatus(StatusEmissao.EMITIDA);
 
@@ -70,6 +72,7 @@ public class CartaoApplicationService {
                String.valueOf(cartao.getId()),
                cartao.getNumero(),
                cartao.getStatus().name(),
+               dataSolicitacao,
                Instant.now()
        );
 
@@ -94,9 +97,6 @@ public class CartaoApplicationService {
        }
        if (mensagem.clienteId() == null || mensagem.clienteId().isBlank()) {
            throw new IllegalArgumentException("clienteId é obrigatório");
-       }
-       if (mensagem.nomeTitular() == null || mensagem.nomeTitular().isBlank()) {
-           throw new IllegalArgumentException("nomeTitular é obrigatório");
        }
     }
 }

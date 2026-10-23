@@ -11,6 +11,7 @@ public record CartaoEmitidoEvent(
         String cartaoId,
         String numeroCartao,
         String status,
+        Instant dataSolicitacao,
         Instant ocorridoEm
 ) {
 }

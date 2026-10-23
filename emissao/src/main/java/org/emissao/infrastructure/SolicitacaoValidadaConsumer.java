@@ -17,7 +17,7 @@ public class SolicitacaoValidadaConsumer {
     @Inject
     CartaoApplicationService cartaoApplicationService;
 
-    @Incoming("solicitacao-validada")
+    @Incoming("cartao-solicitado")
     public void consumir(String payload) {
 
         try {

@@ -19,6 +19,9 @@ public class Emissao {
     @Column(name = "cliente_id", nullable = false)
     private String clienteId;
 
+    @Column(name = "data_solicitacao", nullable = false)
+    private Instant dataSolicitacao;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cartao_id", nullable = false)
     private Cartao cartao;
@@ -70,6 +73,14 @@ public class Emissao {
 
     public void setClienteId(String clienteId) {
         this.clienteId = clienteId;
+    }
+
+    public Instant getDataSolicitacao() {
+        return dataSolicitacao;
+    }
+
+    public void setDataSolicitacao(Instant dataSolicitacao) {
+        this.dataSolicitacao = dataSolicitacao;
     }
 
     public Cartao getCartao() {
