@@ -5,7 +5,7 @@ import org.solicitacao.entity.Solicitacao;
 import java.time.Instant;
 
 public record SolicitacaoResponse(
-        String id,
+        Long id,
         String clienteId,
         String status,
         Instant criadoEm

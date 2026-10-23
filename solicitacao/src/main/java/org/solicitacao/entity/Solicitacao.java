@@ -4,6 +4,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
@@ -16,8 +18,9 @@ import java.time.Instant;
 public class Solicitacao {
 
     @Id
-    @Column(name = "id", nullable = false, updatable = false, length = 36)
-    private String id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false, updatable = false)
+    private Long id;
 
     @Column(name = "cliente_id", nullable = false, length = 64)
     private String clienteId;
@@ -32,8 +35,7 @@ public class Solicitacao {
     public Solicitacao() {
     }
 
-    public Solicitacao(String id, String clienteId, StatusSolicitacao status) {
-        this.id = id;
+    public Solicitacao(String clienteId, StatusSolicitacao status) {
         this.clienteId = clienteId;
         this.status = status;
     }
@@ -45,11 +47,11 @@ public class Solicitacao {
         }
     }
 
-    public String getId() {
+    public Long getId() {
         return id;
     }
 
-    public void setId(String id) {
+    public void setId(Long id) {
         this.id = id;
     }
 

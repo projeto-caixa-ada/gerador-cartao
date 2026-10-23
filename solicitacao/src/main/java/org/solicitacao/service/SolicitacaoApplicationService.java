@@ -10,8 +10,6 @@ import org.solicitacao.exception.ValidacaoException;
 import org.solicitacao.infrastructure.messaging.KafkaSolicitacaoPublisher;
 import org.solicitacao.repository.SolicitacaoRepository;
 
-import java.util.UUID;
-
 @ApplicationScoped
 public class SolicitacaoApplicationService {
 
@@ -35,7 +33,6 @@ public class SolicitacaoApplicationService {
         validarClienteId(clienteId);
 
         Solicitacao solicitacao = new Solicitacao(
-                UUID.randomUUID().toString(),
                 clienteId.trim(),
                 StatusSolicitacao.ABERTA
         );
@@ -43,10 +40,7 @@ public class SolicitacaoApplicationService {
         solicitacaoRepository.persist(solicitacao);
         solicitacaoRepository.flush();
 
-        SolicitacaoCriadaEvent evento = SolicitacaoCriadaEvent.from(
-                solicitacao,
-                UUID.randomUUID().toString()
-        );
+        SolicitacaoCriadaEvent evento = SolicitacaoCriadaEvent.from(solicitacao);
         kafkaSolicitacaoPublisher.publicar(evento);
 
         return solicitacao;

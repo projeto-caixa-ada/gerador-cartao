@@ -47,8 +47,8 @@ public class KafkaSolicitacaoPublisher {
 
         try {
             emitter.send(payload).toCompletableFuture().get(TIMEOUT_ENVIO_SEGUNDOS, TimeUnit.SECONDS);
-            LOG.infof("Evento %s da solicitação %s publicado no Kafka",
-                    evento.eventId(), evento.solicitacaoId());
+            LOG.infof("Evento da solicitação %s publicado no Kafka",
+                    evento.solicitacaoId());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new PublicacaoEventoException("Envio do evento interrompido", e);
