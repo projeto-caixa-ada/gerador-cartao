@@ -39,7 +39,7 @@ public class KafkaSolicitacaoPublisher {
      * falha do broker seja percebida e tratada pelo {@code @Retry}, em vez de
      * ser silenciosamente perdida.</p>
      */
-    @Retry(maxRetries = 4, delay = 500, jitter = 200)
+    @Retry(maxRetries = 4, delay = 1000, jitter = 200)
     @Timeout(5000)
     @CircuitBreaker(requestVolumeThreshold = 10, failureRatio = 0.5, delay = 10000)
     public void publicar(SolicitacaoCriadaEvent evento) {
@@ -47,8 +47,7 @@ public class KafkaSolicitacaoPublisher {
 
         try {
             emitter.send(payload).toCompletableFuture().get(TIMEOUT_ENVIO_SEGUNDOS, TimeUnit.SECONDS);
-            LOG.infof("Evento da solicitação %s publicado no Kafka",
-                    evento.solicitacaoId());
+            LOG.infof("Evento da solicitação %s publicado no Kafka: %s", evento.solicitacaoId(), payload);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new PublicacaoEventoException("Envio do evento interrompido", e);

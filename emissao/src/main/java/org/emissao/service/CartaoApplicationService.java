@@ -42,8 +42,8 @@ public class CartaoApplicationService {
        Optional<Cartao> cartaoExistente = cartaoRepository.buscarPorSolicitacaoId(solicitacaoId);
 
        if (cartaoExistente.isPresent()) {
-           return emissaoRepository.buscarEmissaoPorSolicitacaoId(solicitacaoId)
-                   .orElseThrow(() -> new IllegalStateException("Emissão já existe para a solicitação " + solicitacaoId));
+           // TODO: Talvez seja melhor lançar uma exceção específica para emissão já existente
+           throw new IllegalStateException("Emissão já existe para a solicitação " + solicitacaoId);
        }
 
        String numeroCartao = cartaoNumberGenerator.gerarNumero();
