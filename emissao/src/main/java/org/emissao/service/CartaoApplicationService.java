@@ -16,7 +16,8 @@ import org.emissao.repository.EmissaoRepository;
 
 import java.time.Instant;
 import java.util.Optional;
-import java.util.UUID;
+
+import static io.quarkus.arc.ComponentsProvider.LOG;
 
 @ApplicationScoped
 public class CartaoApplicationService {
@@ -35,68 +36,91 @@ public class CartaoApplicationService {
 
     @Transactional
     public Emissao processarSolicitacaoValidada(SolicitacaoValidadaMessage mensagem) {
-       validarMensagem(mensagem);
+        validarMensagem(mensagem);
 
-       Instant dataSolicitacao = mensagem.dataSolicitacao() != null ? mensagem.dataSolicitacao() : Instant.now();
-       String solicitacaoId = String.valueOf(mensagem.solicitacaoId());
-       Optional<Cartao> cartaoExistente = cartaoRepository.buscarPorSolicitacaoId(solicitacaoId);
+        String solicitacaoId = String.valueOf(mensagem.solicitacaoId());
 
-       if (cartaoExistente.isPresent()) {
-           // TODO: Talvez seja melhor lançar uma exceção específica para emissão já existente
-           throw new IllegalStateException("Emissão já existe para a solicitação " + solicitacaoId);
-       }
+        Optional<Cartao> cartaoExistente =
+                cartaoRepository.buscarPorSolicitacaoId(solicitacaoId);
 
-       String numeroCartao = cartaoNumberGenerator.gerarNumero();
+        if (cartaoExistente.isPresent()) {
+            LOG.infof(
+                    "Evento duplicado ignorado. Solicitação %s já possui cartão emitido.",
+                    solicitacaoId
+            );
 
-       Cartao cartao = new Cartao();
-       cartao.setSolicitacaoId(solicitacaoId);
-       cartao.setClienteId(mensagem.clienteId());
-       cartao.setDataSolicitacao(dataSolicitacao);
-       cartao.setNumero(numeroCartao);
-       cartao.setStatus(StatusCartao.EMITIDO);
+            return emissaoRepository.buscarEmissaoPorSolicitacaoId(solicitacaoId)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Cartão existente sem emissão correspondente para a solicitação "
+                                    + solicitacaoId
+                    ));
+        }
 
-       cartaoRepository.persist(cartao);
+        Instant dataSolicitacao = mensagem.dataSolicitacao() != null
+                ? mensagem.dataSolicitacao()
+                : Instant.now();
 
-       Emissao emissao = new Emissao();
-       emissao.setSolicitacaoId(solicitacaoId);
-       emissao.setClienteId(mensagem.clienteId());
-       emissao.setDataSolicitacao(dataSolicitacao);
-       emissao.setCartao(cartao);
-       emissao.setStatus(StatusEmissao.EMITIDA);
+        String numeroCartao = cartaoNumberGenerator.gerarNumero();
 
-       emissaoRepository.persist(emissao);
+        Cartao cartao = new Cartao();
+        cartao.setSolicitacaoId(solicitacaoId);
+        cartao.setClienteId(mensagem.clienteId());
+        cartao.setDataSolicitacao(dataSolicitacao);
+        cartao.setNumero(numeroCartao);
+        cartao.setStatus(StatusCartao.EMITIDO);
 
-       CartaoEmitidoEvent evento = new CartaoEmitidoEvent(
-               solicitacaoId,
-               mensagem.clienteId(),
-               String.valueOf(cartao.getId()),
-               cartao.getNumero(),
-               cartao.getStatus().name(),
-               dataSolicitacao,
-               Instant.now()
-       );
+        cartaoRepository.persist(cartao);
 
-       kafkaCartaoEmitidoPublisher.publicar(evento);
-       return emissao;
+        Emissao emissao = new Emissao();
+        emissao.setSolicitacaoId(solicitacaoId);
+        emissao.setClienteId(mensagem.clienteId());
+        emissao.setDataSolicitacao(dataSolicitacao);
+        emissao.setCartao(cartao);
+        emissao.setStatus(StatusEmissao.EMITIDA);
+
+        emissaoRepository.persist(emissao);
+
+        CartaoEmitidoEvent evento = new CartaoEmitidoEvent(
+                solicitacaoId,
+                mensagem.clienteId(),
+                String.valueOf(cartao.getId()),
+                cartao.getNumero(),
+                cartao.getStatus().name(),
+                dataSolicitacao,
+                Instant.now()
+        );
+
+        kafkaCartaoEmitidoPublisher.publicar(evento);
+
+        return emissao;
     }
 
     public Cartao buscarCartao(Long id) {
-       return cartaoRepository.findById(id);
+        return cartaoRepository.findById(id);
     }
 
     public Emissao buscarEmissao(Long id) {
-       return emissaoRepository.findById(id);
+        return emissaoRepository.findById(id);
     }
 
     private void validarMensagem(SolicitacaoValidadaMessage mensagem) {
-       if (mensagem == null) {
-           throw new IllegalArgumentException("Mensagem de solicitação não pode ser nula");
-       }
-       if (mensagem.solicitacaoId() == null) {
-           throw new IllegalArgumentException("solicitacaoId é obrigatório");
-       }
-       if (mensagem.clienteId() == null || mensagem.clienteId().isBlank()) {
-           throw new IllegalArgumentException("clienteId é obrigatório");
-       }
+
+        if (mensagem == null) {
+            throw new IllegalArgumentException(
+                    "Mensagem de solicitação não pode ser nula"
+            );
+        }
+
+        if (mensagem.solicitacaoId() == null) {
+            throw new IllegalArgumentException(
+                    "solicitacaoId é obrigatório"
+            );
+        }
+
+        if (mensagem.clienteId() == null || mensagem.clienteId().isBlank()) {
+            throw new IllegalArgumentException(
+                    "clienteId é obrigatório"
+            );
+        }
     }
 }

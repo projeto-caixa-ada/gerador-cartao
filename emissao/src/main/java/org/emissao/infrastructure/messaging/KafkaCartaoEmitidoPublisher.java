@@ -1,15 +1,20 @@
+
 package org.emissao.infrastructure.messaging;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.emissao.dto.CartaoEmitidoEvent;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
+import org.emissao.dto.CartaoEmitidoEvent;
+import org.jboss.logging.Logger;
 
 @ApplicationScoped
 public class KafkaCartaoEmitidoPublisher {
+
+    private static final Logger LOG =
+            Logger.getLogger(KafkaCartaoEmitidoPublisher.class);
 
     @Inject
     ObjectMapper objectMapper;
@@ -19,10 +24,28 @@ public class KafkaCartaoEmitidoPublisher {
 
     public void publicar(CartaoEmitidoEvent evento) {
         try {
-            emitter.send(objectMapper.writeValueAsString(evento));
-            System.out.println("Evento de cartão emitido publicado no Kafka: " + evento);
+            String mensagem = objectMapper.writeValueAsString(evento);
+
+            emitter.send(mensagem);
+
+            String jsonFormatado = objectMapper
+                    .writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(evento);
+
+            LOG.infof(
+                      "\n"+
+                             "Evento CARTAO_EMITIDO enviado para publicação no Kafka"
+                            + "\nCanal: cartao-emitido"
+                            + "\nEvento:\n%s",
+                    jsonFormatado
+            );
+
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Erro ao serializar evento de cartão emitido", e);
+            LOG.error("Erro ao serializar evento de cartão emitido", e);
+
+            throw new IllegalStateException(
+                    "Erro ao serializar evento de cartão emitido", e
+            );
         }
     }
 }

@@ -21,15 +21,9 @@ public class SolicitacaoApplicationService {
     @Inject
     KafkaSolicitacaoPublisher kafkaSolicitacaoPublisher;
 
-    /**
-     * Registra a solicitação e publica o evento no Kafka na mesma transação.
-     *
-     * <p>Se a publicação falhar mesmo após as tentativas do fault tolerance,
-     * a transação é revertida e nenhuma solicitação fica registrada sem que o
-     * evento tenha sido enviado.</p>
-     */
     @Transactional
     public Solicitacao criarSolicitacao(String clienteId) {
+
         validarClienteId(clienteId);
 
         Solicitacao solicitacao = new Solicitacao(
@@ -41,6 +35,7 @@ public class SolicitacaoApplicationService {
         solicitacaoRepository.flush();
 
         SolicitacaoCriadaEvent evento = SolicitacaoCriadaEvent.from(solicitacao);
+
         kafkaSolicitacaoPublisher.publicar(evento);
 
         return solicitacao;
