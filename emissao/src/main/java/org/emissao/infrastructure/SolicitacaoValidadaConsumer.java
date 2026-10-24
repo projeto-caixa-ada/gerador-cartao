@@ -5,7 +5,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.emissao.dto.SolicitacaoValidadaMessage;
-import org.emissao.service.CartaoApplicationService;
+import org.emissao.service.CartaoService;
 
 import static io.quarkus.arc.ComponentsProvider.LOG;
 
@@ -16,7 +16,7 @@ public class SolicitacaoValidadaConsumer {
     ObjectMapper objectMapper;
 
     @Inject
-    CartaoApplicationService cartaoApplicationService;
+    CartaoService cartaoApplicationService;
 
     @Incoming("cartao-solicitado")
     public void consumir(String payload) {
@@ -28,7 +28,7 @@ public class SolicitacaoValidadaConsumer {
                     );
 
             cartaoApplicationService.processarSolicitacaoValidada(mensagem);
-            
+
         } catch (Exception e) {
             LOG.errorf(
                     "Falha ao processar mensagem Kafka: %s",

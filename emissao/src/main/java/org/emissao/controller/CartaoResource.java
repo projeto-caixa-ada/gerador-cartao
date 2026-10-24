@@ -2,35 +2,37 @@ package org.emissao.controller;
 
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
-import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PATCH;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
-import org.emissao.dto.SolicitacaoValidadaMessage;
-import org.emissao.entity.Cartao;
-import org.emissao.entity.Emissao;
-import org.emissao.service.CartaoApplicationService;
+import jakarta.ws.rs.core.Response;
+import org.emissao.dto.CartaoEmitidoEvent;
+import org.emissao.service.CartaoService;
 
 @Path("/api/emissoes")
 public class CartaoResource {
 
     @Inject
-    CartaoApplicationService cartaoApplicationService;
+    CartaoService cartaoService;
 
-    @POST
-    @Path("/cartoes/processar")
-    public Emissao processarMensagem(SolicitacaoValidadaMessage mensagem) {
-        return cartaoApplicationService.processarSolicitacaoValidada(mensagem);
+    @GET
+    @Path("/cartoes/{cartaoId}")
+    public CartaoEmitidoEvent buscarCartaoPorId(@PathParam("cartaoId") Long cartaoId) {
+        return cartaoService.buscarPorId(cartaoId);
     }
 
     @GET
-    @Path("/cartoes/{id}")
-    public Cartao buscarCartao(@PathParam("id") Long id) {
-        return cartaoApplicationService.buscarCartao(id);
+    @Path("/cartoes/solicitacao/{solicitacaoId}")
+    public CartaoEmitidoEvent buscarCartaoPorSolicitacaoId(
+            @PathParam("solicitacaoId") String solicitacaoId) {
+        return cartaoService.buscarPorSolicitacaoId(solicitacaoId);
     }
 
-    @GET
-    @Path("/{id}")
-    public Emissao buscarEmissao(@PathParam("id") Long id) {
-        return cartaoApplicationService.buscarEmissao(id);
+    @PATCH
+    @Path("/cartoes/solicitacao/{cartaoId}/cache")
+    public Response invalidarCachePorCartaoId(@PathParam("cartaoId") Long cartaoId) {
+        cartaoService.invalidar(cartaoId);
+        return Response.noContent().build();
     }
+
 }
