@@ -1,0 +1,143 @@
+openapi: 3.0.0
+info:
+  title: endpoints
+  version: 1.0.0
+paths:
+  /api/solicitacoes/1:
+    get:
+      summary: Buscar solicitação por ID
+      operationId: >-
+        c_users_karol_onedrive_documents_bruno_gerador_de_cart_o_-_endpoints_solicita_o_buscar_solicita_o_por_id_yml
+      description: >-
+        Retorna os dados atuais da solicitação. Altere o último segmento da URL
+        para o ID desejado.
+
+
+        Respostas:
+
+        - 200: solicitação encontrada
+
+        - 400: ID inválido
+
+        - 404: solicitação não encontrada
+      tags:
+        - Solicitação
+      responses:
+        '200':
+          description: ''
+      servers:
+        - url: http://100.87.241.52:8081
+  /api/solicitacoes:
+    post:
+      summary: Criar solicitação
+      operationId: >-
+        c_users_karol_onedrive_documents_bruno_gerador_de_cart_o_-_endpoints_solicita_o_criar_solicita_o_yml
+      description: >-
+        Cria uma nova solicitação com status ABERTA e publica o evento
+        cartao.solicitado no Kafka.
+
+
+        Respostas:
+
+        - 201: solicitação criada
+
+        - 400: dados inválidos
+
+        - 503: falha ao publicar o evento no Kafka
+      tags:
+        - Solicitação
+      responses:
+        '200':
+          description: ''
+      parameters:
+        - name: Content-Type
+          in: header
+          description: ''
+          required: true
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        $ref: '#/components/requestBodies/criar_solicita_o'
+      servers:
+        - url: http://100.87.241.52:8081
+  /api/emissoes/cartoes/solicitacao/6:
+    get:
+      summary: Buscar cartão pela solicitação
+      operationId: >-
+        c_users_karol_onedrive_documents_bruno_gerador_de_cart_o_-_endpoints_emiss_o_buscar_cart_o_pela_solicita_o_yml
+      description: >-
+        Busca o cartão emitido para a solicitação informada. Altere o último
+        segmento da URL para o ID da solicitação.
+
+
+        Respostas:
+
+        - 200: cartão encontrado
+
+        - 404: nenhum cartão encontrado para a solicitação
+      tags:
+        - Emissão
+      responses:
+        '200':
+          description: ''
+      servers:
+        - url: http://100.87.241.52:8083
+  /api/emissoes/cartoes/1:
+    get:
+      summary: Buscar cartão por ID
+      operationId: >-
+        c_users_karol_onedrive_documents_bruno_gerador_de_cart_o_-_endpoints_emiss_o_buscar_cart_o_por_id_yml
+      description: >-
+        Busca o cartão pelo ID. Usa cache-aside no Redis com TTL de 20 segundos
+        e fallback para o PostgreSQL.
+
+
+        Respostas:
+
+        - 200: cartão encontrado
+
+        - 404: cartão não encontrado
+      tags:
+        - Emissão
+      responses:
+        '200':
+          description: ''
+      servers:
+        - url: http://100.87.241.52:8083
+  /api/emissoes/cartoes/solicitacao/6/cache:
+    patch:
+      summary: Invalidar cache do cartão
+      operationId: >-
+        c_users_karol_onedrive_documents_bruno_gerador_de_cart_o_-_endpoints_emiss_o_invalidar_cache_do_cart_o_yml
+      description: |-
+        Remove a chave cartao:{cartaoId} do Redis. A operação é idempotente.
+
+        Respostas:
+        - 204: cache invalidado
+      tags:
+        - Emissão
+      responses:
+        '200':
+          description: ''
+      servers:
+        - url: http://100.87.241.52:8083
+servers: []
+components:
+  schemas:
+    criar_solicita_o:
+      type: object
+      properties:
+        clienteId:
+          type: string
+      example:
+        clienteId: '{{cliente-id}}'
+  requestBodies:
+    criar_solicita_o:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/criar_solicita_o'
+      description: ''
+      required: true
+  securitySchemes: {}
