@@ -8,6 +8,7 @@ import org.solicitacao.dto.CartaoEmitidoEvent;
 import org.solicitacao.dto.SolicitacaoCriadaEvent;
 import org.solicitacao.entity.Solicitacao;
 import org.solicitacao.enums.StatusSolicitacao;
+import org.solicitacao.exception.RecursoNaoEncontradoException;
 import org.solicitacao.exception.ValidacaoException;
 import org.solicitacao.infrastructure.messaging.KafkaSolicitacaoPublisher;
 import org.solicitacao.repository.SolicitacaoRepository;
@@ -43,6 +44,17 @@ public class SolicitacaoApplicationService {
         kafkaSolicitacaoPublisher.publicar(evento);
 
         return solicitacao;
+    }
+
+    public Solicitacao buscarPorId(Long id) {
+        if (id == null || id <= 0) {
+            throw new ValidacaoException("id deve ser um número maior que zero");
+        }
+
+        return solicitacaoRepository.findByIdOptional(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException(
+                        "Solicitação " + id + " não encontrada"
+                ));
     }
 
     @Transactional

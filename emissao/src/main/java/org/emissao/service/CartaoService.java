@@ -12,6 +12,7 @@ import org.emissao.entity.Cartao;
 import org.emissao.entity.Emissao;
 import org.emissao.enums.StatusCartao;
 import org.emissao.enums.StatusEmissao;
+import org.emissao.exception.RecursoNaoEncontradoException;
 import org.emissao.infrastructure.CartaoNumberGenerator;
 import org.emissao.infrastructure.messaging.KafkaCartaoEmitidoPublisher;
 import org.emissao.mapper.CartaoMapper;
@@ -131,7 +132,9 @@ public class CartaoService {
 
         if (cartao == null) {
             LOG.infof("Cartão não encontrado para a solicitação %s", solicitacaoId);
-            return null;
+            throw new RecursoNaoEncontradoException(
+                    "Cartão não encontrado para a solicitação " + solicitacaoId
+            );
         }
 
         Log.info("Cartão consultado fonte de verdade para a solicitação " + solicitacaoId + ": " + (cartao != null ? cartao.getId() : "null"));
@@ -165,7 +168,7 @@ public class CartaoService {
 
         if (cartao == null) {
             LOG.infof("Cartão não encontrado para o ID %d", cartaoId);
-            return null;
+            throw new RecursoNaoEncontradoException("Cartão " + cartaoId + " não encontrado");
         }
 
         Log.info("Cartão consultado fonte de verdade para o ID " + cartaoId + ": " + (cartao != null ? cartao.getId() : "null"));
