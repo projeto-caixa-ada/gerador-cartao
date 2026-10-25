@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "events": [
+    {
+      "name": "cartao.solicitado",
+      "producer": "solicitacao",
+      "consumer": "emissao",
+      "payload": {
+        "solicitacaoId": 101,
+        "clienteId": "001",
+        "dataSolicitacao": "2026-10-24T18:30:00Z"
+      }
+    },
+    {
+      "name": "cartao.emitido",
+      "producer": "emissao",
+      "consumer": ["solicitacao", "consumidores-externos"],
+      "payload": {
+        "solicitacaoId": "101",
+        "clienteId": "001",
+        "cartaoId": "5001",
+        "numeroCartao": "1234 5678 9012 3456",
+        "status": "EMITIDO",
+        "dataSolicitacao": "2026-10-24T18:30:00Z",
+        "ocorridoEm": "2026-10-24T18:31:00Z"
+      }
+    }
+  ]
+}
