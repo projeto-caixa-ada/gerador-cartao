@@ -1,124 +1,337 @@
-# Guia rápido da infra local
+# Gerador de Cartão
 
-Dois bancos PostgreSQL (um por serviço), Redis (cache) e Kafka (eventos), via Docker Compose.
+Sistema de **contratação e emissão de cartões** organizado em dois microsserviços com contextos delimitados, bancos segregados, comunicação assíncrona por eventos e cache de leitura.
 
-## 1. Como subir
+## 1. Tema
 
-```bash
-docker compose up -d                                # sobe tudo
-docker compose up -d postgres-solicitacao redis     # só o que precisar
-docker compose ps                                   # STATUS deve ficar (healthy)
-docker compose logs -f kafka                        # logs de um serviço
-docker compose down                                 # derruba (mantém dados)
-docker compose down -v                              # derruba e APAGA os dados
+O domínio é o ciclo de vida de um cartão: o cliente solicita o cartão, a solicitação é registrada e o cartão é emitido de forma assíncrona. O projeto aplica os padrões do módulo — bounded contexts, banco por serviço, mensageria, idempotência, cache, resiliência e contratos executáveis — a um problema de negócio próprio.
+
+## 2. Problema
+
+O fluxo de contratação precisa atender pedidos de cartão sem acoplar os contextos de **Solicitação** e **Emissão**:
+
+- o cliente envia um pedido e recebe uma resposta rápida, sem esperar a geração do cartão;
+- a emissão precisa ocorrer mesmo se o serviço de solicitação estiver momentaneamente indisponível;
+- eventos podem ser entregues mais de uma vez, então a emissão não pode gerar cartões duplicados;
+- consultas de cartão são mais frequentes que alterações e precisam de baixa latência;
+- os dois contextos não podem compartilhar banco nem consultar os dados um do outro diretamente.
+
+A solução separa os contextos, usa o Kafka como única via de integração e mantém o PostgreSQL como fonte da verdade de cada serviço.
+
+## 3. Visão de arquitetura
+
+```mermaid
+flowchart LR
+    C[Cliente] -->|"POST /api/solicitacoes"| S["servico-solicitacao :8081<br/>contexto: SOLICITAÇÃO"]
+    S --> DB1[(solicitacao_cartao_db)]
+    S -->|"publica cartao.solicitado<br/>após o ack"| K[(Kafka)]
+    K -->|"entrega at-least-once"| E["servico-emissao :8083<br/>contexto: EMISSÃO"]
+    E --> DB2[(emissao_cartao_db)]
+    E --> R[(Redis<br/>cache 20 s)]
+    E -->|"publica cartao.emitido"| K
+    K -->|"entrega cartao.emitido"| S
+    K -->|"entrega cartao.emitido"| X[Consumidores externos]
+    S -.->|"ABERTA → EMITIDA"| S
 ```
 
-O Kafka leva de 15 a 30 segundos para ficar `healthy`.
+### 3.1 Serviços e responsabilidades
 
-## 2. Endereços e credenciais
+```mermaid
+flowchart TB
+    subgraph SOL["servico-solicitacao — porta 8081"]
+        direction TB
+        S1["Cria solicitação como ABERTA"]
+        S2["Publica cartao.solicitado"]
+        S3["Consome cartao.emitido"]
+        S4["Atualiza solicitação para EMITIDA"]
+        DB1[(solicitacao_cartao_db<br/>porta 5432)]
+        S1 --> S2
+        S1 --> DB1
+        S3 --> S4
+        S4 --> DB1
+    end
 
-| Serviço                         | Container                  | Do seu computador (IDE/Maven) | De dentro do compose           |
-|---------------------------------|----------------------------|-------------------------------|--------------------------------|
-| PostgreSQL (solicitação)        | `app-postgres-solicitacao` | `localhost:5432`              | `postgres-solicitacao:5432`    |
-| PostgreSQL (emissão)            | `app-postgres-emissao`     | `localhost:5433`              | `postgres-emissao:5432`        |
-| Redis                           | `app-redis`                | `localhost:6379`              | `redis:6379`                   |
-| Kafka                           | `app-kafka`                | `localhost:9092`              | `kafka:29092`                  |
+    subgraph EMI["servico-emissao — porta 8083"]
+        direction TB
+        E1["Consome cartao.solicitado"]
+        E2["Emite cartão de forma idempotente"]
+        E3["Publica cartao.emitido"]
+        E4["Serve consultas com cache"]
+        DB2[(emissao_cartao_db<br/>porta 5433)]
+        R[(Redis<br/>porta 6379)]
+        E1 --> E2
+        E2 --> DB2
+        E2 --> E3
+        E3 --> DB2
+        E4 --> DB2
+        E4 --> R
+    end
 
-**PostgreSQL (mesmo usuário e senha nos dois)**
+    subgraph INFRA["Infraestrutura"]
+        K[(Kafka<br/>porta 9092)]
+    end
 
-- Usuário: `app`
-- Senha: `app`
+    S2 --> K
+    K --> E1
+    E3 --> K
+    K --> S3
+```
 
-| Serviço   | Banco                   | JDBC na IDE                                         | JDBC dentro do compose                                          |
-|-----------|-------------------------|-----------------------------------------------------|-----------------------------------------------------------------|
-| Solicitação | `solicitacao_cartao_db` | `jdbc:postgresql://localhost:5432/solicitacao_cartao_db` | `jdbc:postgresql://postgres-solicitacao:5432/solicitacao_cartao_db` |
-| Emissão     | `emissao_cartao_db`     | `jdbc:postgresql://localhost:5433/emissao_cartao_db`     | `jdbc:postgresql://postgres-emissao:5432/emissao_cartao_db`         |
+Dentro do Docker Compose os serviços usam `kafka:29092`, `redis:6379` e `postgres-*:5432`. As portas `9092`, `5433` e `6379` são para acesso do host/IDE.
 
-**Redis:** sem senha.
+### 3.2 Eventos e garantia de entrega
 
-**Kafka:** sem autenticação (PLAINTEXT).
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Cliente
+    participant S as Solicitação
+    participant K as Kafka
+    participant E as Emissão
+    participant DB as PostgreSQL
+    participant X as Consumidores externos
 
-> Rodando pela IDE, use `localhost` (e a porta **5433** para o banco de emissão).
-> Rodando dentro do Docker Compose, use o nome do serviço, e a porta do
-> Postgres é sempre **5432**. Nunca `localhost` dentro de um container.
+    C->>S: POST /api/solicitacoes
+    S->>DB: persiste solicitação ABERTA
+    S->>K: publica cartao.solicitado
+    K-->>S: ack
+    S-->>C: 202 Accepted + Location
+    K-->>E: entrega cartao.solicitado
+    Note over K,E: garantia at-least-once
+    E->>E: verifica idempotência por solicitacaoId
+    E->>DB: persiste cartão EMITIDO e emissão EMITIDA
+    E->>K: publica cartao.emitido
+    K-->>S: entrega cartao.emitido
+    S->>DB: ABERTA → EMITIDA
+    K-->>X: entrega cartao.emitido
+    Note over K: falhas de consumo vão para cartao.dlt<br/>com replay manual
+```
 
-## 3. Variáveis de ambiente (serviço rodando dentro do compose)
+`cartao.solicitado` vai da solicitação para a emissão; `cartao.emitido` vai da emissão para a solicitação e para consumidores externos; `cartao.dlt` recebe as mensagens que falharam no consumo de ambos os serviços.
 
-**Redis e Kafka (iguais nos dois serviços)**
+A garantia declarada é **at-least-once**: uma mensagem pode ser entregue mais de uma vez. Por isso os consumidores são idempotentes:
 
-| Spring                           | Quarkus                       | Valor                          |
-|----------------------------------|-------------------------------|--------------------------------|
-| `SPRING_DATA_REDIS_HOST`         | `QUARKUS_REDIS_HOSTS`         | `redis` / `redis://redis:6379` |
-| `SPRING_KAFKA_BOOTSTRAP_SERVERS` | `KAFKA_BOOTSTRAP_SERVERS`     | `kafka:29092`                  |
+- a emissão verifica se já existe cartão para o `solicitacaoId` antes de criar outro;
+- a solicitação só altera o status para `EMITIDA` se ela ainda estiver `ABERTA`;
+- mensagens com falha vão para `cartao.dlt`, com replay manual.
 
-**Banco do serviço de solicitação**
+Os contratos dos eventos ficam em [`shared-contracts/eventos.json`](shared-contracts/eventos.json) e são verificados por **Pact** nos dois sentidos. Os pacts versionados estão em [`shared-contracts/pacts`](shared-contracts/pacts).
 
-| Spring                       | Quarkus                       | Valor                                                               |
-|------------------------------|-------------------------------|---------------------------------------------------------------------|
-| `SPRING_DATASOURCE_URL`      | `QUARKUS_DATASOURCE_JDBC_URL` | `jdbc:postgresql://postgres-solicitacao:5432/solicitacao_cartao_db` |
-| `SPRING_DATASOURCE_USERNAME` | `QUARKUS_DATASOURCE_USERNAME` | `app`                                                               |
-| `SPRING_DATASOURCE_PASSWORD` | `QUARKUS_DATASOURCE_PASSWORD` | `app`                                                               |
+### 3.3 Cache de leitura
 
-**Banco do serviço de emissão**
+O serviço de emissão usa **cache-aside** no Redis:
 
-| Spring                       | Quarkus                       | Valor                                                       |
-|------------------------------|-------------------------------|-------------------------------------------------------------|
-| `SPRING_DATASOURCE_URL`      | `QUARKUS_DATASOURCE_JDBC_URL` | `jdbc:postgresql://postgres-emissao:5432/emissao_cartao_db` |
-| `SPRING_DATASOURCE_USERNAME` | `QUARKUS_DATASOURCE_USERNAME` | `app`                                                       |
-| `SPRING_DATASOURCE_PASSWORD` | `QUARKUS_DATASOURCE_PASSWORD` | `app`                                                       |
+```mermaid
+flowchart TD
+    A["GET /api/emissoes/cartoes/{cartaoId}<br/>ou /cartoes/solicitacao/{solicitacaoId}"] --> B{"Chave existe no Redis?"}
+    B -->|"hit"| C["Retorna o valor do cache"]
+    B -->|"miss"| D["Consulta o PostgreSQL"]
+    B -->|"falha do Redis"| D
+    D --> E["Grava no Redis com TTL de 20 s"]
+    E --> F["Retorna o cartão"]
+    C --> F
+    G["PATCH .../cache<br/>ou mudança de status"] --> H["DEL cartao:{cartaoId}"]
+    H --> D
+```
 
-## 4. Convenções de tópicos Kafka
+- **Chaves:** `cartao:{cartaoId}` e `cartao:solicitacao:{solicitacaoId}`.
+- **TTL:** 20 segundos.
+- **Invalidação:** `DEL cartao:{cartaoId}` ao alterar o status e via `PATCH /api/emissoes/cartoes/solicitacao/{cartaoId}/cache`.
+- **Fallback:** se o Redis falhar, a leitura segue direto no PostgreSQL.
+- **Fonte da verdade:** PostgreSQL; o Redis pode ser apagado a qualquer momento.
 
-O broker cria tópicos automaticamente no primeiro uso (1 partição,
-replicação 1). Mesmo assim, combinem os nomes antes para não haver divergência.
+### 3.4 Resiliência
 
-**Padrão sugerido:** `<dominio>.<entidade>.<evento>` em minúsculas, separado por ponto.
+- publicação do `cartao.solicitado` com `acks=all`, idempotência do producer, retry com backoff/jitter, timeout e circuit breaker;
+- falha na publicação retorna `503` e a solicitação não é confirmada ao cliente;
+- consumo com política de dead letter para `cartao.dlt`;
+- a resposta `202 Accepted` só é enviada após o ack do Kafka.
 
-| Tópico (EXEMPLO, ajustar ao projeto) | Produtor              | Consumidor            | Payload |
-|--------------------------------------|-----------------------|-----------------------|---------|
-| `cartao.solicitacao.criada`          | `servico-solicitacao` | `servico-emissao`     | JSON    |
-| `cartao.emissao.concluida`           | `servico-emissao`     | `servico-solicitacao` | JSON    |
-| `cartao.solicitacao.criada.dlt`      | (erros)               | (análise)             | JSON    |
+## 4. Perfil de execução e fallbacks
 
-**TODO do grupo:** preencher esta tabela com os tópicos reais.
+**Perfil declarado: A — Docker Compose.** Todos os componentes sobem em containers e a execução foi validada nesse perfil.
 
-Regras sugeridas:
+```mermaid
+flowchart TB
+    subgraph A["Perfil A — Docker"]
+        A1["Declarado e suportado"]
+        A2["docker compose up -d --build"]
+        A3["Bancos + Redis + Kafka + serviços em containers"]
+        A1 --> A2 --> A3
+    end
 
-- Um `group-id` diferente por serviço consumidor.
-- Sufixo `.dlt` para tópicos de mensagens que falharam (dead letter).
-- Eventos no passado (`criada`, não `criar`).
-- Usar sempre o mesmo formato de serialização (JSON) e um campo `eventId` único para permitir idempotência.
+    subgraph B["Perfil B — restrito / JVM"]
+        B1["Fallback suportado"]
+        B2["Infraestrutura em Docker + aplicações com quarkus:dev"]
+        B3["Testes unitários e de contrato sem Docker"]
+        B1 --> B2
+        B1 --> B3
+    end
 
-## 5. Convenções de cache Redis
+    subgraph C["Perfil C — conceitual"]
+        C1["Arquitetura, fluxos, ADRs e contratos documentados"]
+    end
+```
 
-**Padrão de chave:** `<app>:<cache>:<id>`, ex.: `gerador-cartao:solicitacao:42`.
+Fallbacks e ressalvas:
 
-| Cache (EXEMPLO, ajustar ao projeto) | Chave                              | TTL    | Invalidar quando             |
-|-------------------------------------|------------------------------------|--------|------------------------------|
-| `solicitacao`                       | `gerador-cartao:solicitacao:{id}`  | 10 min | solicitação for atualizada   |
-| `cartao`                            | `gerador-cartao:cartao:{id}`       | 5 min  | cartão for alterado          |
+- **Sem Redis:** a API de consulta continua funcionando, lendo do PostgreSQL.
+- **Sem Docker para testes:** `./mvnw clean verify` executa testes unitários e de contrato sem PostgreSQL, Kafka ou Redis.
+- **Sem Docker para a aplicação completa:** é necessário ter PostgreSQL, Kafka e Redis locais e ajustar as URLs em `application.properties`; o projeto não inclui um modo totalmente in-memory para os dois serviços.
 
-**TODO do grupo:** preencher com os caches reais.
+## 5. Como rodar
 
-Regras sugeridas:
+### 5.1 Pré-requisitos
 
-- Sempre definir TTL. Cache sem expiração vira dado velho.
-- O PostgreSQL é a fonte da verdade, o Redis pode ser apagado a qualquer momento.
-- O prefixo `gerador-cartao:` evita colisão de chaves entre serviços.
-- Cada serviço acessa apenas o próprio banco. Dados do outro serviço chegam por evento Kafka, nunca por consulta direta ao banco dele.
+- Docker com Docker Compose v2 (perfil A);
+- Java 21 e Maven Wrapper (perfil B e testes).
 
-## 6. Problemas comuns
+### 5.2 Perfil A — Docker Compose
 
-| Sintoma | Causa provável | Solução |
-|---------|----------------|---------|
-| `Conexão recusada` na 5432 ou 5433 | Container parado ou porta ocupada por outro Postgres | `docker compose ps -a`, `docker compose logs postgres-solicitacao` (ou `postgres-emissao`) |
-| `port is already allocated` | Porta em uso no host | Parar o serviço local ou mudar o mapeamento (ex.: `5434:5432`) |
-| Serviço de emissão não conecta no banco pela IDE | Usando a porta 5432 | Usar `localhost:5433` |
-| Serviço de emissão não conecta no banco dentro do Docker | Usando `localhost` ou a porta 5433 | Usar `postgres-emissao:5432` |
-| Serviço no Docker não conecta no Kafka | Usando `localhost:9092` dentro do container | Usar `kafka:29092` |
-| Serviço na IDE não conecta no Kafka | Usando `kafka:29092` fora do Docker | Usar `localhost:9092` |
-| `database "appdb" does not exist` | Configuração antiga apontando para o banco `appdb` | Usar `solicitacao_cartao_db` ou `emissao_cartao_db` |
-| Container `app-postgres` antigo ainda aparece | Sobra do compose anterior | `docker compose up -d --remove-orphans` |
-| Kafka `unhealthy` logo após o `up` | Ainda iniciando | Esperar 30 segundos e conferir `docker compose ps` |
-| Dados antigos atrapalhando | Volume com estado de testes anteriores | `docker compose down -v` |
-| Quarkus sobe containers sozinho | Dev Services ativo | `quarkus.devservices.enabled=false` |
+```bash
+docker compose up -d --build
+docker compose ps          # aguarde os containers ficarem healthy
+```
+
+O Kafka pode levar de 15 a 30 segundos para ficar `healthy`.
+
+Acesse:
+
+- Swagger da solicitação: <http://localhost:8081/q/swagger-ui>
+- Swagger da emissão: <http://localhost:8083/q/swagger-ui>
+- OpenAPI: <http://localhost:8081/q/openapi> e <http://localhost:8083/q/openapi>
+
+Smoke test do fluxo:
+
+```bash
+# Cria a solicitação; resposta esperada: 202 Accepted + Location
+curl -i -X POST http://localhost:8081/api/solicitacoes \
+  -H 'Content-Type: application/json' \
+  -d '{"clienteId":"111"}'
+
+# Consulta a solicitação (o cartão é emitido de forma assíncrona)
+curl http://localhost:8081/api/solicitacoes/1
+
+# Consulta o cartão gerado para a solicitação
+curl http://localhost:8083/api/emissoes/cartoes/solicitacao/1
+```
+
+Se o cartão ainda não aparecer, aguarde alguns segundos e consulte novamente; a emissão depende do consumo do evento.
+
+Para acompanhar ou derrubar o ambiente:
+
+```bash
+docker compose logs -f servico-solicitacao servico-emissao kafka
+docker compose down        # mantém os dados
+docker compose down -v     # remove os volumes e apaga os dados
+```
+
+### 5.3 Perfil B — aplicações na JVM
+
+Suba apenas a infraestrutura:
+
+```bash
+docker compose up -d postgres-solicitacao postgres-emissao redis kafka
+```
+
+Em dois terminais, rode cada serviço:
+
+```bash
+cd solicitacao && ./mvnw quarkus:dev
+cd emissao && ./mvnw quarkus:dev
+```
+
+As configurações padrão já apontam para `localhost:5432`, `localhost:5433`, `localhost:9092` e `localhost:6379`. Para sobrescrever, use variáveis de ambiente ou `-D`, por exemplo:
+
+```bash
+QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://localhost:5432/solicitacao_cartao_db \
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092 \
+./mvnw quarkus:dev
+```
+
+### 5.4 Perfil C — conceitual
+
+Não há execução de aplicação neste perfil. A visão conceitual está em [`docs/arquitetura.md`](docs/arquitetura.md), os fluxos de negócio em [`projeto-final-contratacao-cartao.md`](projeto-final-contratacao-cartao.md) e as decisões em [`docs/adr`](docs/adr).
+
+### 5.5 Testes automatizados
+
+Cada serviço tem build Maven independente (não há `pom.xml` raiz multi-módulo):
+
+```bash
+cd solicitacao && ./mvnw clean verify
+cd emissao && ./mvnw clean verify
+```
+
+Os comandos executam:
+
+- testes unitários com JUnit 5 + Mockito;
+- testes de contrato Pact de consumer e provider, nos dois sentidos;
+- verificação de cobertura com JaCoCo, com mínimo de **80% de linhas**.
+
+Não é necessário subir Docker, PostgreSQL, Kafka ou Redis para os testes. Os relatórios de cobertura ficam em `target/site/jacoco/index.html`.
+
+## 6. Endpoints
+
+### Serviço de solicitação (`http://localhost:8081`)
+
+```mermaid
+flowchart LR
+    subgraph SOL["Serviço de solicitação — http://localhost:8081"]
+        P["POST /api/solicitacoes"] --> R1["202 Accepted + Location<br/>publica cartao.solicitado"]
+        G["GET /api/solicitacoes/{id}"] --> R2["200 com a solicitação<br/>ou 404"]
+    end
+```
+
+Exemplo de corpo do `POST`:
+
+```json
+{
+  "clienteId": "111"
+}
+```
+
+### Serviço de emissão (`http://localhost:8083`)
+
+```mermaid
+flowchart LR
+    subgraph EMI["Serviço de emissão — http://localhost:8083"]
+        G1["GET /api/emissoes/cartoes/{cartaoId}"] --> R1["200 com o cartão<br/>ou 404<br/>cache-aside"]
+        G2["GET /api/emissoes/cartoes/solicitacao/{solicitacaoId}"] --> R2["200 com o cartão<br/>ou 404<br/>cache-aside"]
+        P1["PATCH /api/emissoes/cartoes/solicitacao/{cartaoId}/cache"] --> R3["204<br/>invalida cartao:{cartaoId}"]
+    end
+```
+
+## 7. Estrutura do repositório
+
+```
+.
+├── README.md
+├── AVALIACAO.md                  # auto-avaliação por critério, com evidências
+├── docker-compose.yml            # infra + serviços (perfil A)
+├── docs/
+│   ├── arquitetura.md            # contextos, fluxos, cache e contratos
+│   └── adr/                      # ADR-001 a ADR-005
+├── solicitacao/                  # microsserviço de Solicitação (Quarkus + Maven)
+├── emissao/                      # microsserviço de Emissão (Quarkus + Maven)
+├── shared-contracts/
+│   ├── eventos.json              # contratos dos eventos
+│   └── pacts/                    # pacts versionados
+├── endpoints.yaml                # coleção de endpoints
+└── endpoints-bruno.json          # coleção para o Bruno
+```
+
+## 8. Decisões e documentação
+
+```mermaid
+flowchart LR
+    D["Documentação do projeto"] --> A1["ADR-001<br/>Separação de contextos"]
+    D --> A2["ADR-002<br/>Banco por serviço"]
+    D --> A3["ADR-003<br/>Comunicação assíncrona com Kafka"]
+    D --> A4["ADR-004<br/>Cache de leitura com Redis"]
+    D --> A5["ADR-005<br/>Resiliência na publicação"]
+    D --> ARQ["docs/arquitetura.md"]
+    D --> SC["shared-contracts/README.md"]
+    D --> AV["AVALIACAO.md"]
+```
+
+Os documentos estão em [`docs/adr`](docs/adr), [`docs/arquitetura.md`](docs/arquitetura.md), [`shared-contracts/README.md`](shared-contracts/README.md) e [`AVALIACAO.md`](AVALIACAO.md).

@@ -1,0 +1,165 @@
+{
+  "info": {
+    "name": "Gerador de Cartão - Endpoints",
+    "description": "Coleção com todos os endpoints dos serviços de Solicitação e Emissão.\n\nURLs configuradas para acesso remoto via Tailscale:\n- Solicitação: http://100.87.241.52:8081\n- Emissão: http://100.87.241.52:8083\n\nSe estiver executando na própria máquina do servidor, troque o IP por localhost.\nSe o IP do Tailscale mudar, edite as URLs das requisições.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Solicitação",
+      "description": "API do contexto de Solicitação. Cria solicitações e consulta o status atual.",
+      "item": [
+        {
+          "name": "Criar solicitação",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": \"123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://100.87.241.52:8081/api/solicitacoes",
+              "protocol": "http",
+              "host": [
+                "100",
+                "87",
+                "241",
+                "52"
+              ],
+              "port": "8081",
+              "path": [
+                "api",
+                "solicitacoes"
+              ]
+            },
+            "description": "Cria uma nova solicitação com status ABERTA e publica o evento cartao.solicitado no Kafka.\n\nRespostas:\n- 202: solicitação recebida e em processamento\n- 400: dados inválidos\n- 503: falha ao publicar o evento no Kafka"
+          },
+          "response": []
+        },
+        {
+          "name": "Buscar solicitação por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://100.87.241.52:8081/api/solicitacoes/1",
+              "protocol": "http",
+              "host": [
+                "100",
+                "87",
+                "241",
+                "52"
+              ],
+              "port": "8081",
+              "path": [
+                "api",
+                "solicitacoes",
+                "1"
+              ]
+            },
+            "description": "Retorna os dados atuais da solicitação. Altere o último segmento da URL para o ID desejado.\n\nRespostas:\n- 200: solicitação encontrada\n- 400: ID inválido\n- 404: solicitação não encontrada"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Emissão",
+      "description": "API do contexto de Emissão. Consulta cartões emitidos e gerencia o cache Redis.",
+      "item": [
+        {
+          "name": "Buscar cartão por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://100.87.241.52:8083/api/emissoes/cartoes/1",
+              "protocol": "http",
+              "host": [
+                "100",
+                "87",
+                "241",
+                "52"
+              ],
+              "port": "8083",
+              "path": [
+                "api",
+                "emissoes",
+                "cartoes",
+                "1"
+              ]
+            },
+            "description": "Busca o cartão pelo ID. Usa cache-aside no Redis com TTL de 20 segundos e fallback para o PostgreSQL.\n\nRespostas:\n- 200: cartão encontrado\n- 404: cartão não encontrado"
+          },
+          "response": []
+        },
+        {
+          "name": "Buscar cartão pela solicitação",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://100.87.241.52:8083/api/emissoes/cartoes/solicitacao/1",
+              "protocol": "http",
+              "host": [
+                "100",
+                "87",
+                "241",
+                "52"
+              ],
+              "port": "8083",
+              "path": [
+                "api",
+                "emissoes",
+                "cartoes",
+                "solicitacao",
+                "1"
+              ]
+            },
+            "description": "Busca o cartão emitido para a solicitação informada. Altere o último segmento da URL para o ID da solicitação.\n\nRespostas:\n- 200: cartão encontrado\n- 404: nenhum cartão encontrado para a solicitação"
+          },
+          "response": []
+        },
+        {
+          "name": "Invalidar cache do cartão",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "http://100.87.241.52:8083/api/emissoes/cartoes/solicitacao/1/cache",
+              "protocol": "http",
+              "host": [
+                "100",
+                "87",
+                "241",
+                "52"
+              ],
+              "port": "8083",
+              "path": [
+                "api",
+                "emissoes",
+                "cartoes",
+                "solicitacao",
+                "1",
+                "cache"
+              ]
+            },
+            "description": "Remove a chave cartao:{cartaoId} do Redis. A operação é idempotente.\n\nRespostas:\n- 204: cache invalidado"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

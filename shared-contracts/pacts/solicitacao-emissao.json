@@ -1,0 +1,98 @@
+{
+  "consumer": {
+    "name": "solicitacao"
+  },
+  "messages": [
+    {
+      "contents": {
+        "cartaoId": "5001",
+        "clienteId": "001",
+        "dataSolicitacao": "2026-10-24T18:30:00Z",
+        "numeroCartao": "1234 5678 9012 3456",
+        "ocorridoEm": "2026-10-24T18:31:00Z",
+        "solicitacaoId": "101",
+        "status": "EMITIDO"
+      },
+      "description": "evento cartao.emitido",
+      "matchingRules": {
+        "body": {
+          "$.cartaoId": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.clienteId": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.dataSolicitacao": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.numeroCartao": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.ocorridoEm": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.solicitacaoId": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.status": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        }
+      },
+      "metaData": {
+        "contentType": "application/json"
+      },
+      "providerStates": [
+        {
+          "name": "um cart\u00E3o foi emitido para a solicita\u00E7\u00E3o"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "pact-jvm": {
+      "version": "4.7.5"
+    },
+    "pactSpecification": {
+      "version": "3.0.0"
+    }
+  },
+  "provider": {
+    "name": "emissao"
+  }
+}

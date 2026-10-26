@@ -1,0 +1,62 @@
+{
+  "consumer": {
+    "name": "emissao"
+  },
+  "messages": [
+    {
+      "contents": {
+        "clienteId": "001",
+        "dataSolicitacao": "2026-10-24T18:30:00Z",
+        "solicitacaoId": 101
+      },
+      "description": "evento cartao.solicitado",
+      "matchingRules": {
+        "body": {
+          "$.clienteId": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.dataSolicitacao": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.solicitacaoId": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "integer"
+              }
+            ]
+          }
+        }
+      },
+      "metaData": {
+        "contentType": "application/json"
+      },
+      "providerStates": [
+        {
+          "name": "uma solicita\u00E7\u00E3o de cart\u00E3o foi criada"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "pact-jvm": {
+      "version": "4.7.5"
+    },
+    "pactSpecification": {
+      "version": "3.0.0"
+    }
+  },
+  "provider": {
+    "name": "solicitacao"
+  }
+}
