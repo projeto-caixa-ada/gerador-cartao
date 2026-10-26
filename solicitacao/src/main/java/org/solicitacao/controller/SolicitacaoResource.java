@@ -52,8 +52,8 @@ public class SolicitacaoResource {
     )
     @APIResponses({
             @APIResponse(
-                    responseCode = "201",
-                    description = "Solicitação criada com sucesso",
+                    responseCode = "202",
+                    description = "Solicitação recebida e em processamento",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON,
                             schema = @Schema(implementation = SolicitacaoResponse.class)
@@ -91,7 +91,8 @@ public class SolicitacaoResource {
 
         Solicitacao solicitacao = solicitacaoApplicationService.criarSolicitacao(request.clienteId());
 
-        return Response.created(URI.create("/api/solicitacoes/" + solicitacao.getId()))
+        return Response.accepted()
+                .location(URI.create("/api/solicitacoes/" + solicitacao.getId()))
                 .entity(SolicitacaoResponse.from(solicitacao))
                 .build();
     }
