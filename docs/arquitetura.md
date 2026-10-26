@@ -13,7 +13,7 @@ Dois microsserviços com contextos e bancos separados, integrados por eventos no
 | Kafka | 9092 | — | — |
 | Redis | 6379 | — | — |
 
-Dentro do Docker Compose, use os nomes dos serviços (`kafka:29092`, `redis:6379`, `postgres-*:5432`). As portas 5433 e 9092 existem apenas para acesso do host/IDE.
+Dentro do Docker Compose, use os nomes dos serviços (`kafka:29092`, `redis:6379`, `postgres-*:5432`). As portas `5432`/`5433`, `6379` e `9092` são mapeadas para acesso do host/IDE.
 
 ## 2. Contextos e fluxo
 
@@ -51,7 +51,7 @@ POST /api/solicitacoes
 
 - Falha no consumo de qualquer um dos serviços → `cartao.dlt` (replay manual).
 - Redis indisponível → a leitura segue direto no PostgreSQL.
-- `GET /api/emissoes/cartoes/{id}`: Redis (hit) → PostgreSQL (miss) → grava com TTL de 20 s.
+- `GET /api/emissoes/cartoes/{cartaoId}`: Redis (hit) → PostgreSQL (miss) → grava com TTL de 20 s.
 
 ## 3. Contextos de negócio
 
@@ -107,7 +107,7 @@ sequenceDiagram
     K-->>S: entrega cartao.emitido
     S->>DB: ABERTA → EMITIDA
 
-    C->>E: GET /api/emissoes/cartoes/{id}
+    C->>E: GET /api/emissoes/cartoes/{cartaoId}
     E->>R: consulta cache
     alt hit
         R-->>E: cartão
