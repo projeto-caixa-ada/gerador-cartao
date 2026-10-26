@@ -1,7 +1,6 @@
 package org.emissao.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.quarkus.logging.Log;
 import io.quarkus.redis.datasource.RedisDataSource;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -89,6 +88,14 @@ public class CartaoService {
         cartao.setStatus(StatusCartao.EMITIDO);
 
         cartaoRepository.persist(cartao);
+        LOG.infof(
+                "Cartão salvo no banco: {id=%s, solicitacaoId=%s, clienteId=%s, numeroCartao=%s, status=%s}",
+                cartao.getId(),
+                cartao.getSolicitacaoId(),
+                cartao.getClienteId(),
+                mascararNumero(cartao.getNumero()),
+                cartao.getStatus()
+        );
 
         Emissao emissao = new Emissao();
         emissao.setSolicitacaoId(solicitacaoId);
@@ -98,6 +105,14 @@ public class CartaoService {
         emissao.setStatus(StatusEmissao.EMITIDA);
 
         emissaoRepository.persist(emissao);
+        LOG.infof(
+                "Emissão salva no banco: {id=%s, solicitacaoId=%s, clienteId=%s, cartaoId=%s, status=%s}",
+                emissao.getId(),
+                emissao.getSolicitacaoId(),
+                emissao.getClienteId(),
+                cartao.getId(),
+                emissao.getStatus()
+        );
 
         CartaoEmitidoEvent evento = new CartaoEmitidoEvent(
                 solicitacaoId,
@@ -137,7 +152,7 @@ public class CartaoService {
             );
         }
 
-        Log.info("Cartão consultado fonte de verdade para a solicitação " + solicitacaoId + ": " + (cartao != null ? cartao.getId() : "null"));
+        LOG.infof("Cartão consultado na fonte de verdade para a solicitação %s: %s", solicitacaoId, cartao.getId());
 
         CartaoEmitidoEvent resultado = cartaoMapper.toEvent(cartao);
 
@@ -171,7 +186,7 @@ public class CartaoService {
             throw new RecursoNaoEncontradoException("Cartão " + cartaoId + " não encontrado");
         }
 
-        Log.info("Cartão consultado fonte de verdade para o ID " + cartaoId + ": " + (cartao != null ? cartao.getId() : "null"));
+        LOG.infof("Cartão consultado na fonte de verdade para o ID %d: %s", cartaoId, cartao.getId());
 
         CartaoEmitidoEvent resultado = cartaoMapper.toEvent(cartao);
 
@@ -227,6 +242,14 @@ public class CartaoService {
                     "clienteId é obrigatório"
             );
         }
+    }
+
+    private static String mascararNumero(String numero) {
+        if (numero == null || numero.length() <= 4) {
+            return "****";
+        }
+
+        return "*".repeat(numero.length() - 4) + numero.substring(numero.length() - 4);
     }
 
 }

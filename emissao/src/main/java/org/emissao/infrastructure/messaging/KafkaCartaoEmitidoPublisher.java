@@ -28,15 +28,21 @@ public class KafkaCartaoEmitidoPublisher {
 
             emitter.send(mensagem);
 
+            CartaoEmitidoEvent eventoParaLog = new CartaoEmitidoEvent(
+                    evento.solicitacaoId(),
+                    evento.clienteId(),
+                    evento.cartaoId(),
+                    mascararNumero(evento.numeroCartao()),
+                    evento.status(),
+                    evento.dataSolicitacao(),
+                    evento.ocorridoEm()
+            );
             String jsonFormatado = objectMapper
                     .writerWithDefaultPrettyPrinter()
-                    .writeValueAsString(evento);
+                    .writeValueAsString(eventoParaLog);
 
             LOG.infof(
-                      "\n"+
-                             "Evento CARTAO_EMITIDO enviado para publicação no Kafka"
-                            + "\nCanal: cartao-emitido"
-                            + "\nEvento:\n%s",
+                    "Evento publicado no canal Kafka cartao-emitido:\n%s",
                     jsonFormatado
             );
 
@@ -47,5 +53,13 @@ public class KafkaCartaoEmitidoPublisher {
                     "Erro ao serializar evento de cartão emitido", e
             );
         }
+    }
+
+    private static String mascararNumero(String numero) {
+        if (numero == null || numero.length() <= 4) {
+            return "****";
+        }
+
+        return "*".repeat(numero.length() - 4) + numero.substring(numero.length() - 4);
     }
 }

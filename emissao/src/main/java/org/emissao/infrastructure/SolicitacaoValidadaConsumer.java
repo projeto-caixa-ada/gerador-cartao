@@ -6,11 +6,13 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.emissao.dto.SolicitacaoValidadaMessage;
 import org.emissao.service.CartaoService;
-
-import static io.quarkus.arc.ComponentsProvider.LOG;
+import org.jboss.logging.Logger;
 
 @ApplicationScoped
 public class SolicitacaoValidadaConsumer {
+
+    private static final Logger LOG =
+            Logger.getLogger(SolicitacaoValidadaConsumer.class);
 
     @Inject
     ObjectMapper objectMapper;
@@ -27,6 +29,7 @@ public class SolicitacaoValidadaConsumer {
                             SolicitacaoValidadaMessage.class
                     );
 
+            LOG.infof("Evento consumido do canal cartao-solicitado: %s", mensagem);
             cartaoApplicationService.processarSolicitacaoValidada(mensagem);
 
         } catch (Exception e) {

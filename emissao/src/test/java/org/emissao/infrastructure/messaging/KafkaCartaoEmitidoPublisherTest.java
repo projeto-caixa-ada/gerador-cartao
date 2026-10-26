@@ -55,7 +55,17 @@ class KafkaCartaoEmitidoPublisherTest {
     void publicaEventoNoCanalCartaoEmitido() throws Exception {
         when(objectMapper.writeValueAsString(evento)).thenReturn("{\"cartaoId\":\"5001\"}");
         when(objectMapper.writerWithDefaultPrettyPrinter()).thenReturn(objectWriter);
-        when(objectWriter.writeValueAsString(evento)).thenReturn("{\n  \"cartaoId\": \"5001\"\n}");
+        CartaoEmitidoEvent eventoParaLog = new CartaoEmitidoEvent(
+                evento.solicitacaoId(),
+                evento.clienteId(),
+                evento.cartaoId(),
+                "************0000",
+                evento.status(),
+                evento.dataSolicitacao(),
+                evento.ocorridoEm()
+        );
+        when(objectWriter.writeValueAsString(eventoParaLog))
+                .thenReturn("{\n  \"cartaoId\": \"5001\"\n}");
 
         publisher.publicar(evento);
 
