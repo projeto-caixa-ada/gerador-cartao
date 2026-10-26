@@ -1,6 +1,6 @@
 # Auto-avaliação — Gerador de Cartão
 
-Grupo: Copilot + equipe do projeto — integrantes e papéis: _preencher_
+Grupo: Leonardo de Paula (desenvolvedor), Rafael Melo (desenvolvedor) e Romulo Nishiyama (desenvolvedor)
 Tema/domínio: sistema de solicitação e emissão de cartões, com contextos separados, banco por serviço, eventos no Kafka e cache de leitura no Redis.
 Perfil de execução: **A (Docker Compose)** · Fallbacks documentados: **B (híbrido: infraestrutura em Docker + aplicações na JVM)**, testes sem infraestrutura e leitura direta no PostgreSQL quando o Redis falha.
 
