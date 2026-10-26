@@ -22,7 +22,6 @@ Usar Kafka para publicar eventos de negócio entre serviços.
 ## Boas práticas que reforçam a decisão
 - Idempotência no consumidor: impedir que a mesma mensagem gere duas emissões do mesmo cartão.
 - Retentativas e DLT: tratar falhas transitórias e enviar mensagens problemáticas para fila de análise.
-- Outbox Pattern: garantir que a persistência do registro e a publicação do evento sejam consistentes.
 - Rastreabilidade: propagar identificadores de correlação entre solicitação, evento e emissão.
 - Segurança: publicar apenas dados mínimos necessários no evento.
 - Observabilidade: monitorar volume, latência, erros e acúmulo de mensagens no tópico.

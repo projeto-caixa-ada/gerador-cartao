@@ -26,4 +26,4 @@ Manter dois contextos: `solicitacao` e `emissao`.
 - a complexidade operacional aumenta, exigindo observabilidade, monitoramento e tratamento de falhas.
 
 ## Alternativa considerada
-Manter todo o processo em um único microsserviço. Essa opção reduce a infraestrutura inicial, mas limita a independência de implantação, aumenta o acoplamento entre regras de negócio e torna a escalabilidade menos flexível.
+Manter todo o processo em um único microsserviço. Essa opção reduz a infraestrutura inicial, mas limita a independência de implantação, aumenta o acoplamento entre regras de negócio e torna a escalabilidade menos flexível.

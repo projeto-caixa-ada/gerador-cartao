@@ -123,6 +123,8 @@ emissao_cartao_db
 
 ### 4.3. Mapa de contextos - Coreografia
 
+Coreografia é um padrão de comunicação onde os Bounded Contexts (Contextos Delimitados) interagem de forma descentralizada, reagindo a eventos sem a necessidade de um controlador central.
+
 ```mermaid
 flowchart TD
     subgraph SOL[Contexto de Solicitação]

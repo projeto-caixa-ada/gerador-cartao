@@ -39,7 +39,7 @@ paths:
 
         Respostas:
 
-        - 201: solicitação criada
+        - 202: solicitação recebida e em processamento
 
         - 400: dados inválidos
 

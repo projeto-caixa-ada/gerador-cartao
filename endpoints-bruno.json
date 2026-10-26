@@ -43,7 +43,7 @@
                 "solicitacoes"
               ]
             },
-            "description": "Cria uma nova solicitação com status ABERTA e publica o evento cartao.solicitado no Kafka.\n\nRespostas:\n- 201: solicitação criada\n- 400: dados inválidos\n- 503: falha ao publicar o evento no Kafka"
+            "description": "Cria uma nova solicitação com status ABERTA e publica o evento cartao.solicitado no Kafka.\n\nRespostas:\n- 202: solicitação recebida e em processamento\n- 400: dados inválidos\n- 503: falha ao publicar o evento no Kafka"
           },
           "response": []
         },
